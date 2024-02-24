@@ -22,13 +22,10 @@
 
 }
 
-
-
-
-
 %end
 %ctor {
   mbsr_ruststartup();
+  %init;
 }
 /* How to Hook with Logos
 Hooks are written with syntax similar to that of an Objective-C @implementation.
