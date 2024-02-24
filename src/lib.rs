@@ -15,14 +15,9 @@ static SHADER_PATHS: Lazy<Mutex<HashMap<OsString, PathBuf>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn get_path() -> PathBuf {
-    let result = autoreleasepool(|pool| {
-        let sandbox_dir = unsafe {NSHomeDirectory().as_ref()};
-        let sandbox_dir = sandbox_dir.as_str(pool).to_owned();
-        let mut pathbuf = PathBuf::from(sandbox_dir);
+        let mut pathbuf = std::env::home_dir().unwrap();
         pathbuf.extend(["Documents", "games", "com.mojang", "minecraftpe"]);
         pathbuf
-    });
-    result
 }
 #[no_mangle]
 unsafe extern "C" fn mbsr_ruststartup() {
