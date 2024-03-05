@@ -1,49 +1,68 @@
 mod common;
 mod mc_utils;
+mod proxy;
 
-use icrate::Foundation::{NSHomeDirectory, NSString};
+use icrate::Foundation::{NSHomeDirectory, NSString, ns_string};
 use objc2::rc::{autoreleasepool, Id};
 use once_cell::sync::Lazy;
-use oslog::OsLogger;
+use proxy::LSBundleProxy;
+use simplelog::{Config, WriteLogger, LevelFilter};
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Mutex;
-use std::thread;
+use std::{fs, thread};
+use ctor::ctor;
+
 
 static SHADER_PATHS: Lazy<Mutex<HashMap<OsString, PathBuf>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn get_path() -> PathBuf {
-        let mut pathbuf = std::env::home_dir().unwrap();
-        pathbuf.extend(["Documents", "games", "com.mojang", "minecraftpe"]);
-        pathbuf
+    unsafe {
+    let bundle_proxy =
+        LSBundleProxy::bundleProxyForIdentifier(ns_string!("com.mojang.minecraftpreview"));
+    
+        let data_path = bundle_proxy.dataContainerUrl();
+        let path_str = data_path.path().unwrap();
+        let rspath_buf = path_str.to_string();
+        let mut base_path = PathBuf::from(rspath_buf);
+    base_path.push("Documents/games/com.mojang/minecraftpe");
+    base_path
+    }
 }
-#[no_mangle]
-unsafe extern "C" fn mbsr_ruststartup() {
-    OsLogger::new("com.minecraft")
-        .level_filter(log::LevelFilter::Debug)
-        .init()
-        .unwrap();
+// TODO: Figure out if unwinding is the devil in this scenario
+// unwinding beyond startup might be ub so idk 
+#[ctor]
+fn startup() {
+    let path = get_path();
+    let Ok(logfile) = fs::File::create(path.join("mbsr_log.txt")) else {
+        return;
+    };
+    WriteLogger::init(
+        LevelFilter::Debug,
+        Config::default(),
+        logfile);
 
-    log::info!(target: "ModInit", "Rust thread starting up!");
+    log::info!("Rust thread starting up!");
+    log::info!("Hi if you see this everything is fine");
+    log::info!("It wont work because im reimplementing stuff");
     let _handler = thread::spawn(|| {
-        common::setup_json_watcher(get_path());
+        common::setup_json_watcher(path)
     }).join();
     
-    match _handler {
-        Ok(_) => (),
-        Err(e) => match e.downcast_ref::<&'static str>() {
-            Some(e_str) => log::error!(target:"ModInit", "JsonWatch thread Error: {e_str}"),
-            None => log::error!(target: "ModInit", "Unknown error in thread.."),
-        },
+    //Somewhat insane but ill take it
+    if let Ok(watch_err) = _handler {
+        if let Err(e) = watch_err {
+        log::error!("Watcher setup failed: {e}");
+        }
     }
 }
 
 // This can be done safely thanks to objc2 which tries very hard to make 
 // types zero sized and also make them compile as lowly as possible
-#[no_mangle]
-unsafe extern "C" fn mbsr_get_rep_path(
+fn mbsr_get_rep_path(
     file_name: &NSString,
     ext_name: &NSString
 ) -> Id<NSString> {
@@ -55,7 +74,7 @@ unsafe extern "C" fn mbsr_get_rep_path(
         let extension = ext_name.as_str(pool);
         log::info!(target: "MBHook", "Operating on path: {rs_filename:#?}");
         if !rs_filename.ends_with(".material.bin") 
-        && extension != ".material.bin" {
+        && extension != "material.bin" {
             return log_dismiss("Path is not for a material bin {rs_filename:#?}");
         }
         let path = Path::new(rs_filename);
@@ -71,14 +90,14 @@ unsafe extern "C" fn mbsr_get_rep_path(
             };
             return NSString::from_str(utf8_path);
         };
-        return log_dismiss("Dismissing path: {rs_filename:#?}");
+        log_dismiss("Dismissing path: {rs_filename:#?}")
     });
     result
 }
 
 #[inline(always)]
 fn log_dismiss(reason: &str) -> Id<NSString>{
-    log::warn!(target: "MBHook", "{reason}");
+    log::warn!("{reason}");
     //Really wanting to get rid of this, objc calls are expensive
     NSString::from_str("")
 }

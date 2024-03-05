@@ -1,3 +1,6 @@
+# NOTICE
+This version of mcber is pretty much a concept rn because idk how to get minecraft's data directory to read from in ios 
+
 # MCBER
 This crate is made to redirect MCBE shaders to ones from resource packs externally so that it can work with any mcbe version and even multiple platforms.
 
