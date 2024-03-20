@@ -8,10 +8,7 @@ this is a alpha ios version that might or not work..
 + Download ios 11.4 sdk from https://github.com/theos/sdks/releases/latest
 + Follow tutorial in https://www.reddit.com/r/jailbreakdevelopers/comments/lhhtdj/tutorial_how_to_cross_compile_for_ios_from_linux/
 + and make xcrun with full path to ios 11.4 sdk path
-+ build rust first
-+ put rust static lib into ios tweak dir
-+ build tweak with make package FINALPACKAGE=1
-+ profit
++ wip
 
 
 
